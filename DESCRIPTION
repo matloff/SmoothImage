@@ -1,7 +1,7 @@
 Package: SmoothImage
 Version: 0.0.1
 Author: Norm Matloff <normmatloff@gmail.com> [cre,aut], 
-   Jessica Tsoi <clarkfitzg@gmail.com> [aut]
+   Jessica Tsoi <jessicattsoi@gmail.com> [aut]
 Maintainer: Norm Matloff <normmatloff@gmail.com>
 Title: Image Smoothing Via Regression Modeling
 Description: Use of regression models to ameliorate imperfections in images.
