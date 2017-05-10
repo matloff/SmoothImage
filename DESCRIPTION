@@ -4,7 +4,9 @@ Author: Norm Matloff <normmatloff@gmail.com> [cre,aut],
    Jessica Tsoi <jessicattsoi@gmail.com> [aut]
 Maintainer: Norm Matloff <normmatloff@gmail.com>
 Title: Image Smoothing Via Regression Modeling
-Description: Use of regression models to ameliorate imperfections in images.
+Description: Use of regression models to ameliorate imperfections in color images.
+             Option to choose percentage of original image to retain. Usage of k-NN
+             with default at 1 and option to increase k. 
 Depends: stats,utils,pixmap
 Suggests: 
 ByteCompile: yes
