@@ -3,8 +3,21 @@ library(pixmap)
 #central function 
 getnonbound <- function(img) {
   ## extract the pixel array, numbers in [0,1], darkest to lightest
-  a <- img@grey
+  #a <- img@grey
   
+  # temp1 = matrix(1:36,6,6)
+  # temp2 = matrix(37:72,6,6)
+  # colors <- list(temp1, temp2)
+  
+  colors <- list(img@red, img@blue, img@green)
+  
+  decompose <- lapply(colors, getnonboundMatrix)
+  
+  return(decompose)
+}
+
+  
+getnonboundMatrix <- function(a) {
   nr <- nrow(a) #get number of rows
   nc <- ncol(a) #get number of columns
   totalpixels = (nr-2)*(nc-2) #don't get the border
@@ -35,7 +48,22 @@ getnonbound <- function(img) {
 }
 
 makenoise <- function(img) {
-  a <- img@grey ### extract the pixel array, numbers in [0,1], darkest to lightest
+  colors <- list(img@red, img@blue, img@green)
+
+  noisymatrices <- lapply(colors, makenoiseMatrix)
+
+  img@red <- noisymatrices[1][[1]]
+  img@blue <- noisymatrices[2][[1]]
+  img@green <- noisymatrices[3][[1]]
+  
+  # img@red <- makenoiseMatrix(img@red)
+  # img@blue <- makenoiseMatrix(img@blue)
+  
+  #img now has specks
+  return(img)
+}
+
+makenoiseMatrix <- function(a) {
   #makes 15% of pixels messed up 
   arbpixels <- ncol(a)*nrow(a)*0.15 
   #makes pixels 0,1
@@ -43,14 +71,19 @@ makenoise <- function(img) {
   #make pixvals an array of 15% of n by n and makes them corrupt
   #sample pixels from 1 to lenghth of a and get a, return an array and assign them to values in pixvals
   a[sample(1:length(a), length(pixvals))] <- pixvals 
-  img@grey <- a 
-  #LLL.pmg now has specks 
+  return(a)
+}
+
+denoise <- function(img, xylists, alpha=0) {
+  img@red <- denoiseMatrix(img@red, xylists[1][[1]], alpha)
+  img@blue <- denoiseMatrix(img@blue, xylists[2][[1]], alpha)
+  img@green <- denoiseMatrix(img@green, xylists[3][[1]], alpha)
+  
+  #img is now denoised
   return(img)
 }
 
-denoise <- function(img, list, alpha=0) {
-  ### extract the pixel array, numbers in [0,1], darkest to lightest 
-  a <- img@grey
+denoiseMatrix <- function(a, list, alpha=0) {
   nr <- nrow(a)
   nc <- ncol(a)
   
@@ -68,30 +101,28 @@ denoise <- function(img, list, alpha=0) {
   dim(finalist) <- c((nc-2),(nr-2)) #dimensions flipped because we need to transpose
   a[2:(nr-1), 2:(nc-1)] <- t(finalist)
   
-  #Set the denoised image to the image and return the final image
-  denoised <- img
-  denoised@grey <- a
-  return(denoised)
+  return(a)
 }
 
 
 main <- function(imgname) {
   img <- read.pnm(imgname)
+  
   list <- getnonbound(img)
   #regress y on x - aka use the 4 neighbors
-  yonx <- lm(list[2][[1]] ~ list[1][[1]][,1]+list[1][[1]][,2]+list[1][[1]][,3]+list[1][[1]][,4]) #linear model
+  # yonx <- lm(list[2][[1]] ~ list[1][[1]][,1]+list[1][[1]][,2]+list[1][[1]][,3]+list[1][[1]][,4]) #linear model
   #plot(yonx) #plot
-   
+
   #Add blemishes to the image
   print("Adding blemishes")
   noisedimg <- makenoise(img)
   noisedlist <- getnonbound(noisedimg)
   plot(noisedimg) #display
-  
+
   #Used predicted value for blemishes
   print("Denoise with 0.5")
   denoisedimg <- denoise(noisedimg, noisedlist, 0.5)
   plot(denoisedimg) #display
 }
 
-main("LLL.pgm")
+# run main("LLLColor.ppm") with colored ppm image
