@@ -1,50 +1,55 @@
+#whoo
 library(pixmap)
 
 #central function 
-getnonbound <- function(img) {
-  ## extract the pixel array, numbers in [0,1], darkest to lightest
-  #a <- img@grey
-  
-  # temp1 = matrix(1:36,6,6)
-  # temp2 = matrix(37:72,6,6)
-  # colors <- list(temp1, temp2)
-  
+getnonbound <- function(img, k=1) {
   colors <- list(img@red, img@blue, img@green)
   
-  decompose <- lapply(colors, getnonboundMatrix)
+  decompose <- lapply(colors, getnonboundMatrix, k=k)
   
   return(decompose)
 }
 
-  
-getnonboundMatrix <- function(a) {
+getnonboundMatrix <- function(a,k=1) {
   nr <- nrow(a) #get number of rows
   nc <- ncol(a) #get number of columns
-  totalpixels = (nr-2)*(nc-2) #don't get the border
+  totalpixels = (nr-2*k)*(nc-2*k)
   
-  centerpixels <- as.numeric(t(a[2:(nr-1), 2:(nc-1)])) #centers
-  north <- t(a[1:(nr-2), 2:(nc-1)]) #north
-  south <- t(a[3:(nr), 2:(nc-1)]) #south
-  east <- t(a[2:(nr-1), 3:(nc)]) #east
-  west <- t(a[2:(nr-1), 1:(nc-2)]) #west
+  centerpixels <- as.numeric(t(a[(k+1):(nr-k), (k+1):(nc-k)])) #centers
+  neighborpixels <- matrix(data = 0, nrow = totalpixels, ncol = 4*k) #four columns for four directions times k
   
-  #reshape to 1 column
-  dim(north) <- c(totalpixels, 1)
-  dim(south) <- c(totalpixels, 1)
-  dim(east) <- c(totalpixels, 1)
-  dim(west) <- c(totalpixels, 1)
-  
-  #set x and y to something
-  neighborpixels <- matrix(data = 0, nrow = totalpixels, ncol = 4) #four columns for four directions
-  neighborpixels[,4] <- north
-  neighborpixels[,3] <- south
-  neighborpixels[,1] <- east
-  neighborpixels[,2] <- west
+  currentcol = 1
+  for(direction in list("north", "south", "east", "west")) {
+    for(offset in 1:k) {
+      shiftedmatrix <- getshiftedmatrix(a, k, direction, offset)
+      shiftedmatrix <- t(shiftedmatrix)
+      dim(shiftedmatrix) <- c(totalpixels, 1) #reshape to 1 column
+      neighborpixels[,currentcol] <- shiftedmatrix
+      currentcol = currentcol + 1
+    }
+  }
   
   # #returns our list containing x and y
   xylist <- list(neighborpixels, centerpixels)
   #xylist is a list with (xylist.x, xylist.y)
   return(xylist)
+}
+
+getshiftedmatrix <- function(nullm, k, direction, distance) {
+  offsetrow = 0
+  offsetcol = 0
+  
+  if(direction == "north") {
+    offsetrow = -distance
+  } else if(direction == "south") {
+    offsetrow = distance
+  } else if(direction == "west") {
+    offsetcol = -distance
+  } else if(direction == "east") {
+    offsetcol = distance
+  }
+  
+  return(nullm[(k+1+offsetrow):(nrow(nullm)-k+offsetrow), (k+1+offsetcol):(ncol(nullm)-k+offsetcol)])
 }
 
 makenoise <- function(img) {
@@ -74,41 +79,43 @@ makenoiseMatrix <- function(a) {
   return(a)
 }
 
-denoise <- function(img, xylists, alpha=0) {
-  img@red <- denoiseMatrix(img@red, xylists[1][[1]], alpha)
-  img@blue <- denoiseMatrix(img@blue, xylists[2][[1]], alpha)
-  img@green <- denoiseMatrix(img@green, xylists[3][[1]], alpha)
+denoise <- function(img, xylists, k=1, alpha=0) {
+  img@red <- denoiseMatrix(img@red, xylists[1][[1]], k, alpha)
+  img@blue <- denoiseMatrix(img@blue, xylists[2][[1]], k, alpha)
+  img@green <- denoiseMatrix(img@green, xylists[3][[1]], k, alpha)
   
   #img is now denoised
   return(img)
 }
 
-denoiseMatrix <- function(a, list, alpha=0) {
+denoiseMatrix <- function(a, list, k=1, alpha=0) {
   nr <- nrow(a)
   nc <- ncol(a)
   
   #use the predict function from lm
   #use fitted.values
-  pred <- predict(lm(list[2][[1]] ~ list[1][[1]][,1]+list[1][[1]][,2]+list[1][[1]][,3]+list[1][[1]][,4]))
+  pred <- predict(lm(list[2][[1]] ~ rowSums(list[1][[1]]))) # sum rows instead of list[1][[1]][,1]+list[1][[1]][,2]...
   #""list[2][[1]]"" first goes to [2] for y, looks at the first thing in y 
   #"list[1][[1]][,1]" first goes to [1] for x, goes to first matrix, and look at first column - repeat 4 times
   pred[pred > 1] <- 1
+  pred[pred < 0] <- 0
   #condition for a white pixel (1)
-
   #set the center pixel to the predicted value predicted from N,S,E,W pixels
   finalist <- (alpha*list[2][[1]]) + ((1-alpha)*pred) #replace pixel by alpha*pixel + (1-alpha)*predicted value
   finalist <- as.matrix(finalist)
-  dim(finalist) <- c((nc-2),(nr-2)) #dimensions flipped because we need to transpose
-  a[2:(nr-1), 2:(nc-1)] <- t(finalist)
+  dim(finalist) <- c((nc-2*k),(nr-2*k)) #dimensions flipped because we need to transpose
+  a[(k+1):(nr-k), (k+1):(nc-k)] <- t(finalist)
+  # a <- t(finalist)
+  # a <- a[(k+1):(nrow(a)-k),(k+1):(ncol(a)-k)]
   
   return(a)
 }
 
 
-main <- function(imgname) {
+main <- function(imgname, k=1, alpha=0.5) {
   img <- read.pnm(imgname)
   
-  list <- getnonbound(img)
+  list <- getnonbound(img, k)
   #regress y on x - aka use the 4 neighbors
   # yonx <- lm(list[2][[1]] ~ list[1][[1]][,1]+list[1][[1]][,2]+list[1][[1]][,3]+list[1][[1]][,4]) #linear model
   #plot(yonx) #plot
@@ -116,13 +123,16 @@ main <- function(imgname) {
   #Add blemishes to the image
   print("Adding blemishes")
   noisedimg <- makenoise(img)
-  noisedlist <- getnonbound(noisedimg)
+  print("K is")
+  print(k)
+  noisedlist <- getnonbound(noisedimg, k)
   plot(noisedimg) #display
 
   #Used predicted value for blemishes
-  print("Denoise with 0.5")
-  denoisedimg <- denoise(noisedimg, noisedlist, 0.5)
+  print("Alpha is")
+  print(alpha)
+  denoisedimg <- denoise(noisedimg, noisedlist, k, alpha)
   plot(denoisedimg) #display
 }
 
-# run main("LLLColor.ppm") with colored ppm image
+# main("LLL.pgm")
