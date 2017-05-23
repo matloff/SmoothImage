@@ -1,15 +1,17 @@
-\name{smoothimage}
-\alias{smoothimage}
+\name{SmoothImage}
+\alias{SmoothImage}
 \title{Title}
 \description{
-    Blah blah bla
+    #add description here
 }
 
 \usage{
+    #main function to show public - main and it's arguments
     smoothimage(a, b)
 }
 
 \arguments{
+    #write about arguments in detail
     \item{a}{
         The data set you want to whatever
     }
@@ -19,10 +21,12 @@
 }
 
 \details{
-    Talk about the stauff in general
+    #talk about stuff
+    Talk about the stuff in general
 }
 
 \value{
+    #what it will be outputted as
     output form
 }
 
