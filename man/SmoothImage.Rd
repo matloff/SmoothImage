@@ -1,22 +1,28 @@
 \name{SmoothImage}
 \alias{SmoothImage}
-\title{Title}
+\title{Image Smoothing Via Regression Modeling}
 \description{
-    #add description here
+    Use of regression models to ameliorate imperfections in color images.
+    Option to choose percentage of original image to retain.
+    Usage of k-NN with default at 1 and option to increase k. 
 }
 
 \usage{
-    #main function to show public - main and it's arguments
-    smoothimage(a, b)
+    #"main" right now, change to smoothimage later?
+    main(img, k, alpha)
 }
 
 \arguments{
-    #write about arguments in detail
-    \item{a}{
-        The data set you want to whatever
+    
+    \item{img}{
+        Black and white or colored image, convert to ppm format,
+        read with pixmap package - "read.pnm(img)"
     }
-    \item{b}{
-        The data set you want to whatever
+    \item{k}{
+        Number of nearest neighbors
+    }
+    \item{alpha}{
+        Percentage of original image to retain (0.0 - 1.0)
     }
 }
 
@@ -27,13 +33,13 @@
 
 \value{
     #what it will be outputted as
-    output form
+    The return value of \code{main} is a smoothed out ppm image. 
 }
 
 \author{
-Norm Matloff <matloff@cs.ucdavis.edu>, you and your info
+Norm Matloff <matloff@cs.ucdavis.edu>, Jessica Tsoi <jttsoi@ucdavis.edu>
 }
 
 \examples{
-    # whatever code you have to show an example
+    # to be continued
 }
