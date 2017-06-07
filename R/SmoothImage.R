@@ -1,16 +1,60 @@
 #whoo
 library(pixmap)
 
+#divides matrices into equally sized blocks^2 pieces
+divideintosubmatrices <- function(matrices, blocks = 1) {
+  listsofsubmatrices <- lapply(matrices, function(matrixtodivide) {
+    submatrices <- list()
+    nr <- nrow(matrixtodivide) #get number of rows
+    nc <- ncol(matrixtodivide) #get number of columns
+    for(x in 1:blocks) {
+      for(y in 1:blocks) {
+        #ceiling to handle odd-numbered nr/nc
+        xmin <- ceiling(nr/blocks*(x-1)+1)
+        xmax <- ceiling(nr/blocks*x)
+        ymin <- ceiling(nc/blocks*(y-1)+1)
+        ymax <- ceiling(nc/blocks*y)
+        submatrices[[length(submatrices)+1]] <- matrixtodivide[xmin:xmax, ymin:ymax]
+      }
+    }
+    return(submatrices)
+  })
+  return(unlist(listsofsubmatrices, recursive = FALSE))
+}
+
+#combines matrices that have been divided into blocks^2 pieces
+combinesubmatrices <- function(submatrices, blocks = 1) {
+  matrices <- list()
+  index <- 0
+  while(index < length(submatrices)) {
+    combinedmatrix <- NULL
+    for(x in 1:blocks) {
+      combinedmatrixy <- NULL
+      for(y in 1:blocks) {
+        combinedmatrixy <- cbind(combinedmatrixy, submatrices[[index + ((x-1)*blocks)+y]])
+      }
+      combinedmatrix <- rbind(combinedmatrix, combinedmatrixy)
+    }
+    matrices[[length(matrices) + 1]] <- combinedmatrix
+    index <- length(matrices) * blocks^2
+  }
+  return(matrices)
+}
+
 #central function 
-getnonbound <- function(img, k=1) {
-  colors <- list(img@red, img@blue, img@green)
-  
-  decompose <- lapply(colors, getnonboundMatrix, k=k)
+getnonbound <- function(img, k = 1, color = TRUE, blocks = 1) {
+  if (color == TRUE) {
+    colors <- list(img@red, img@blue, img@green)
+  } else {
+    colors <- list(img@grey)
+  }
+  submatrices <- divideintosubmatrices(colors, blocks)
+  decompose <- lapply(submatrices, getnonboundMatrix, k=k)
   
   return(decompose)
 }
 
-getnonboundMatrix <- function(a,k=1) {
+getnonboundMatrix <- function(a, k = 1) {
   nr <- nrow(a) #get number of rows
   nc <- ncol(a) #get number of columns
   totalpixels = (nr-2*k)*(nc-2*k)
@@ -52,17 +96,25 @@ getshiftedmatrix <- function(nullm, k, direction, distance) {
   return(nullm[(k+1+offsetrow):(nrow(nullm)-k+offsetrow), (k+1+offsetcol):(ncol(nullm)-k+offsetcol)])
 }
 
-makenoise <- function(img) {
-  colors <- list(img@red, img@blue, img@green)
-
-  noisymatrices <- lapply(colors, makenoiseMatrix)
-
-  img@red <- noisymatrices[1][[1]]
-  img@blue <- noisymatrices[2][[1]]
-  img@green <- noisymatrices[3][[1]]
+makenoise <- function(img, color = TRUE) {
+  if (color == TRUE) {
+    colors <- list(img@red, img@blue, img@green)
   
-  # img@red <- makenoiseMatrix(img@red)
-  # img@blue <- makenoiseMatrix(img@blue)
+    noisymatrices <- lapply(colors, makenoiseMatrix)
+  
+    img@red <- noisymatrices[1][[1]]
+    img@blue <- noisymatrices[2][[1]]
+    img@green <- noisymatrices[3][[1]]
+  
+    # img@red <- makenoiseMatrix(img@red)
+    # img@blue <- makenoiseMatrix(img@blue)
+  } else {
+    colors <- list(img@grey)
+    
+    noisymatrices <- lapply(colors, makenoiseMatrix)
+    
+    img@grey <- noisymatrices[1][[1]]
+  }
   
   #img now has specks
   return(img)
@@ -79,10 +131,33 @@ makenoiseMatrix <- function(a) {
   return(a)
 }
 
-denoise <- function(img, xylists, k=1, alpha=0) {
-  img@red <- denoiseMatrix(img@red, xylists[1][[1]], k, alpha)
-  img@blue <- denoiseMatrix(img@blue, xylists[2][[1]], k, alpha)
-  img@green <- denoiseMatrix(img@green, xylists[3][[1]], k, alpha)
+denoise <- function(img, xylists, k=1, alpha=0, color = TRUE, blocks = 1) {
+  colors <- NULL
+  if (color == TRUE) {
+    colors <- list(img@red, img@blue, img@green)
+  } else {
+    colors <- list(img@grey)
+  }
+  #divide colors (or bw) into submatrices
+  submatrices <- divideintosubmatrices(colors, blocks)
+  
+  #denoise
+  #SIMPLIFY = FALSE is needed to prevent it from combining all the results into one misshapen matrix
+  denoisedmatrices <- mapply(function(imgmatrix, xylist, k, alpha) {
+    return(denoiseMatrix(imgmatrix, xylist, k, alpha)) # denoiseMatrix(submatrices[[1]], xylists[1][[1]], k, alpha)
+  }, submatrices, xylists, k=k, alpha=alpha, SIMPLIFY = FALSE)
+  
+  #recombine
+  matrices <- combinesubmatrices(denoisedmatrices, blocks)
+  
+  #write denoised matrices to image
+  if (color == TRUE) {
+    img@red <- matrices[1][[1]]
+    img@blue <- matrices[2][[1]]
+    img@green <- matrices[3][[1]]
+  } else {
+    img@grey <- matrices[1][[1]]
+  }
   
   #img is now denoised
   return(img)
@@ -92,9 +167,20 @@ denoiseMatrix <- function(a, list, k=1, alpha=0) {
   nr <- nrow(a)
   nc <- ncol(a)
   
+  # x <- c(5,2,3,2,9)
+  # y <- c(1,2,1,0,5)
+  # df <- data.frame(x,y)
+  # names(df) <- c('x','y')
+  # lmout <- lm(y ~ .,data = df)
+  # df4 <- data.frame(x=4)
+  # predict(lmout, df4)
+  # lm(dfa[,1] ~ ., data = dfa[,-1])
+  
   #use the predict function from lm
   #use fitted.values
-  pred <- predict(lm(list[2][[1]] ~ rowSums(list[1][[1]]))) # sum rows instead of list[1][[1]][,1]+list[1][[1]][,2]...
+  # instead of list[1][[1]][,1]+list[1][[1]][,2]..., do:
+  # https://stackoverflow.com/questions/11991692/using-rs-lm-on-a-dataframe-with-a-list-of-predictors
+  pred <- predict(lm(list[2][[1]] ~ ., data=as.data.frame(list[1][[1]])))
   #""list[2][[1]]"" first goes to [2] for y, looks at the first thing in y 
   #"list[1][[1]][,1]" first goes to [1] for x, goes to first matrix, and look at first column - repeat 4 times
   pred[pred > 1] <- 1
@@ -111,27 +197,27 @@ denoiseMatrix <- function(a, list, k=1, alpha=0) {
   return(a)
 }
 
-
-main <- function(imgname, k=1, alpha=0.5) {
+# alpha = 1 means use original image; alpha = 0 means use prediction only
+main <- function(imgname = "LLLColor.ppm", k = 2, alpha = 0.0, color = TRUE, blocks = 4) {
   img <- read.pnm(imgname)
   
-  list <- getnonbound(img, k)
+  list <- getnonbound(img, k, color, blocks)
   #regress y on x - aka use the 4 neighbors
   # yonx <- lm(list[2][[1]] ~ list[1][[1]][,1]+list[1][[1]][,2]+list[1][[1]][,3]+list[1][[1]][,4]) #linear model
   #plot(yonx) #plot
 
   #Add blemishes to the image
   print("Adding blemishes")
-  noisedimg <- makenoise(img)
-  print("K is")
-  print(k)
-  noisedlist <- getnonbound(noisedimg, k)
+  noisedimg <- makenoise(img, color)
   plot(noisedimg) #display
-
+  
+  cat("K is", k)
+  cat("Alpha is", alpha)
+  
+  noisedlist <- getnonbound(noisedimg, k, color, blocks)
+  
   #Used predicted value for blemishes
-  print("Alpha is")
-  print(alpha)
-  denoisedimg <- denoise(noisedimg, noisedlist, k, alpha)
+  denoisedimg <- denoise(noisedimg, noisedlist, k, alpha, color, blocks)
   plot(denoisedimg) #display
 }
 
